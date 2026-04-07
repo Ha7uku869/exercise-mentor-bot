@@ -79,6 +79,18 @@ def _get_conn() -> sqlite3.Connection:
         _conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_nutrition_user ON nutrition_logs (user_id)"
         )
+        _conn.execute("""
+            CREATE TABLE IF NOT EXISTS bias_detections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                bias_type TEXT NOT NULL,
+                user_message TEXT NOT NULL,
+                detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        _conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bias_user ON bias_detections (user_id)"
+        )
         _conn.commit()
     return _conn
 
@@ -226,3 +238,62 @@ def get_recent_nutrition_logs(user_id: str, limit: int = 20) -> list[dict]:
         }
         for r in reversed(rows)
     ]
+
+
+def add_bias_detection(user_id: str, bias_type: str, user_message: str) -> None:
+    """認知の歪みの検知記録を保存する。"""
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO bias_detections (user_id, bias_type, user_message) VALUES (?, ?, ?)",
+        (user_id, bias_type, user_message),
+    )
+    conn.commit()
+
+
+def get_bias_detections(user_id: str, limit: int = 100) -> list[dict]:
+    """認知の歪みの検知履歴を返す。"""
+    conn = _get_conn()
+    rows = conn.execute(
+        """
+        SELECT bias_type, user_message, detected_at
+        FROM bias_detections
+        WHERE user_id = ?
+        ORDER BY detected_at DESC
+        LIMIT ?
+        """,
+        (user_id, limit),
+    ).fetchall()
+    return [
+        {"bias_type": r[0], "user_message": r[1], "detected_at": r[2]}
+        for r in reversed(rows)
+    ]
+
+
+def get_bias_summary(user_id: str) -> dict:
+    """認知の歪みの種類別集計と時系列データを返す。"""
+    conn = _get_conn()
+    type_rows = conn.execute(
+        """
+        SELECT bias_type, COUNT(*) as cnt
+        FROM bias_detections
+        WHERE user_id = ?
+        GROUP BY bias_type
+        ORDER BY cnt DESC
+        """,
+        (user_id,),
+    ).fetchall()
+    by_type = {r[0]: r[1] for r in type_rows}
+
+    daily_rows = conn.execute(
+        """
+        SELECT DATE(detected_at) as day, COUNT(*) as cnt
+        FROM bias_detections
+        WHERE user_id = ?
+        GROUP BY DATE(detected_at)
+        ORDER BY day
+        """,
+        (user_id,),
+    ).fetchall()
+    by_date = [{"date": r[0], "count": r[1]} for r in daily_rows]
+
+    return {"by_type": by_type, "by_date": by_date, "total": sum(by_type.values())}

@@ -18,7 +18,10 @@ import logging
 from src.bias.prompts import SYSTEM_PROMPT
 from src.llm.client import chat
 from src.rag.retriever import retrieve_knowledge, retrieve_similar, store_message
+import re
+
 from src.storage.memory import (
+    add_bias_detection,
     add_nutrition_log,
     add_training_log,
     get_profile,
@@ -252,6 +255,19 @@ async def respond(
     if user_id:
         await store_message(user_id, user_message, "user")
         await store_message(user_id, reply, "assistant")
+
+    # --- Step 4.5: 応答に認知の歪みが含まれていれば記録 ---
+    if user_id:
+        _BIAS_TYPES = [
+            "全か無か思考", "過度の一般化", "心のフィルター", "マイナス化思考",
+            "結論の飛躍", "拡大解釈と過小評価", "感情的決めつけ",
+            "すべき思考", "レッテル貼り", "個人化",
+        ]
+        for bias_type in _BIAS_TYPES:
+            if bias_type in reply:
+                add_bias_detection(user_id, bias_type, user_message)
+                logger.info("Bias detected: %s（user_id=%s）", bias_type, user_id)
+                break  # 1応答1記録
 
     # --- Step 5: 会話からプロフィール・トレーニング・栄養記録を抽出・保存 ---
     if user_id:
