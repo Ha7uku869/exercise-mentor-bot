@@ -65,17 +65,17 @@ def _ensure_line_clients() -> tuple[WebhookParser, MessagingApi]:
     return _parser, _messaging_api
 
 
-@app.get("/health")
+@app.get("/health") #HTTPのGETメソッド
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/callback")
+@app.post("/callback")  #HTTPのPOSTメソッド(LINEサーバーが「ユーザがMessage送ったよ」と通知してくる窓口)
 async def callback(request: Request) -> dict[str, str]:
     """LINE Webhook エンドポイント。"""
     parser, messaging_api = _ensure_line_clients()
 
-    signature = request.headers.get("X-Line-Signature", "")
+    signature = request.headers.get("X-Line-Signature", "") #X-Line-Signatureで本当にLINEからの通知か検証
     body = (await request.body()).decode("utf-8")
 
     try:
@@ -168,6 +168,20 @@ async def api_get_balance(user_id: str) -> dict:
     """部位別トレーニングバランスを返す。"""
     return analyze_training_balance(user_id)
 
+# ① ユーザーがReactの入力欄に「肩トレどうすれば？」と入力、送信ボタン
+# ② ReactのJSが fetch("http://localhost:8000/api/chat", {
+#      method: "POST",
+#      body: JSON.stringify({ user_id: "me", message: "肩トレどうすれば？" })
+#    })
+#    ↑ ここが「APIを叩く」
+# ③ FastAPIの api_chat 関数が受け取る (main.py:172)
+# ④ FastAPIが内部で：
+#    ・履歴をDBから取得
+#    ・Claude APIを呼んで応答生成
+#    ・バイアス検出
+#    ・DBに保存
+# ⑤ FastAPI が {"reply": "..."} を返す
+# ⑥ Reactが受け取って画面に表示
 
 @app.post("/api/chat")
 async def api_chat(request: Request) -> dict:
