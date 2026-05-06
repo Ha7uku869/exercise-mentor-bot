@@ -30,8 +30,10 @@ from src.storage.memory import (
     get_recent_training_logs,
 )
 from src.storage.training_analyzer import analyze_training_balance
-
+from pydantic import BaseModel, Field
+from src.storage.supabase_client import save_workout, list_workouts
 logger = logging.getLogger(__name__)
+
 
 app = FastAPI(title="筋トレメタ認知AI")
 
@@ -208,3 +210,23 @@ async def api_chat(request: Request) -> dict:
     add_message(user_id, "assistant", reply)
 
     return {"reply": reply}
+
+# リクエストモデル
+class WorkoutCreate(BaseModel):
+    date: str  # ISO format YYYY-MM-DD
+    exercise_name: str
+    weight: float
+    reps: int
+    sets: int
+    fatigue: int | None = Field(default=None, ge=1, le=10)
+    motivation: int | None = Field(default=None, ge=1, le=10)
+    memo: str | None = None
+
+@app.post("/workouts")
+async def api_create_workout(payload: WorkoutCreate) -> dict:
+    saved = save_workout(payload.model_dump(exclude_none=True))
+    return saved
+
+@app.get("/workouts")
+async def api_list_workouts(limit: int = 50) -> dict:
+    return {"workouts": list_workouts(limit=limit)}

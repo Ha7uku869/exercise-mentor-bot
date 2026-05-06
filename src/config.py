@@ -35,6 +35,10 @@ class Settings(BaseSettings):
 
     # HuggingFace Inference API のトークン（埋め込みベクトル生成に使用）
     hf_api_token: str = ""
+    
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
 
 
 # シングルトン的に1つのインスタンスを使い回す。
