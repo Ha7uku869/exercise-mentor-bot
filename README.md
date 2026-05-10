@@ -55,14 +55,34 @@ cp .env.example .env
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console |
 | `GROQ_API_KEY` | [Groq Console](https://console.groq.com/) |
 
-### 2. インストールと起動
+### 2. インストール
 
 ```bash
 pip install -e ".[dev]"
-uvicorn src.api.main:app --reload --port 8000
+cd frontend
+npm install
 ```
 
-### 3. LINE Bot と接続（開発時）
+### 3. 開発サーバーの起動
+
+PowerShell でリポジトリルートから以下を実行:
+
+```powershell
+.\dev.ps1
+```
+
+バックエンドとフロントエンドが別々の PowerShell ウィンドウで起動します。
+
+手動で起動する場合:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn src.api.main:app --reload
+
+cd frontend
+npm run dev
+```
+
+### 4. LINE Bot と接続（開発時）
 
 ```bash
 ngrok http 8000

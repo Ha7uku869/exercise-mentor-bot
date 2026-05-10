@@ -17,6 +17,31 @@ def list_workouts(limit: int=50) -> list[dict]:
     response = client.table("workouts").select("*").order("date", desc=True).limit(limit).execute()
     return response.data  # 取得したレコードのリストを返す
 
+
+def save_context_note(record: dict) -> dict:
+    """context_notes テーブルに1件保存。保存後のレコードを返す。
+
+    workout 以外の重要情報（怪我・目標・生活変化など）を記録する。
+    """
+    response = client.table("context_notes").insert(record).execute()
+    return response.data[0]
+
+
+def list_context_notes(user_id: str, limit: int = 20) -> list[dict]:
+    """ユーザーごとに新しい順に最大 limit 件取得。
+
+    LLM が応答を作るときの背景情報として使う。
+    """
+    response = (
+        client.table("context_notes")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return response.data
+
 if __name__ == "__main__":
     # 簡単な動作確認
     new_record = {

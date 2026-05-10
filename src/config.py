@@ -22,9 +22,9 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    # LINE Messaging API の認証情報
-    line_channel_secret: str
-    line_channel_access_token: str
+    # LINE Messaging API の認証情報（Web版では未設定でも動作）
+    line_channel_secret: str = ""
+    line_channel_access_token: str = ""
 
     # Groq API のキー
     groq_api_key: str

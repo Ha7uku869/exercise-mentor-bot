@@ -67,3 +67,103 @@ async def chat(
         messages=messages,
     )
     return response.choices[0].message.content
+
+
+async def chat_with_tools(
+    user_message: str,
+    system_prompt: str,
+    tools: list[dict],
+    history: list[dict[str, str]] | None = None,
+) -> dict:
+    """ツール呼び出しに対応したチャット応答。
+
+    LLM が「workout を保存したい」「context_note を残したい」と判断したら
+    tool_calls を返す。判断しなければ通常のテキスト応答を返す。
+
+    Returns:
+        {"type": "tool_call", "calls": [{"name": str, "arguments": dict, "id": str}, ...]}
+        または
+        {"type": "text", "content": str}
+    """
+    import json
+
+    client = _get_client()
+
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+
+    response = await client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        tools=tools,
+        tool_choice="auto",
+    )
+    msg = response.choices[0].message
+
+    if msg.tool_calls:
+        calls = [
+            {
+                "id": tc.id,
+                "name": tc.function.name,
+                "arguments": json.loads(tc.function.arguments),
+            }
+            for tc in msg.tool_calls
+        ]
+        return {"type": "tool_call", "calls": calls}
+
+    return {"type": "text", "content": msg.content}
+
+
+async def chat_after_tools(
+    user_message: str,
+    system_prompt: str,
+    tool_calls: list[dict],
+    tool_results: list[dict],
+    history: list[dict[str, str]] | None = None,
+) -> str:
+    """ツール実行結果を踏まえた最終応答を LLM に生成させる。
+
+    chat_with_tools が tool_call を返した後、
+    呼び出し元でツールを実行し、その結果をこの関数に渡すと、
+    LLM が「記録しました。〜」のような自然な応答を作る。
+    """
+    import json
+
+    client = _get_client()
+
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+    messages.append(
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": c["id"],
+                    "type": "function",
+                    "function": {
+                        "name": c["name"],
+                        "arguments": json.dumps(c["arguments"], ensure_ascii=False),
+                    },
+                }
+                for c in tool_calls
+            ],
+        }
+    )
+    for c, r in zip(tool_calls, tool_results):
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": c["id"],
+                "content": json.dumps(r, ensure_ascii=False, default=str),
+            }
+        )
+
+    response = await client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+    )
+    return response.choices[0].message.content
