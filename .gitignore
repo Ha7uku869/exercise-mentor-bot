@@ -29,3 +29,9 @@ Thumbs.db
 # Project-specific files (API keys, assets not for repo)
 API キーの詳細.txt
 character_noukin.png
+
+#実行ターミナル自動立ち上げ
+dev.ps1
+
+#よくわからないがローカルディレクトリが書かれている
+python_envs_report.csv

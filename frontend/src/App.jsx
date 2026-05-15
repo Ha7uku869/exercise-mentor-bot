@@ -231,7 +231,11 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, message: text }),
+        body: JSON.stringify({
+          user_id: userId,
+          display_name: displayName,
+          message: text,
+        }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -273,11 +277,17 @@ export default function App() {
             あなたの記録を分けて保存するために、ニックネームと合言葉を入力してください。
             <br />
             <small>
-              合言葉は保存せず、ブラウザ上で識別用IDに変換します。
+            合言葉は保存せず、ブラウザ上で識別用IDに変換します。
+            <br />
+            改善のため、入力された運動記録やチャット内容を開発者が確認する場合があります。
+            <br />
+            個人情報や見られたくない内容は入力しないでください。
             </small>
           </p>
           <div className="name-form">
             <input
+              lang="ja"
+              autoComplete="nickname" 
               type="text"
               placeholder="例: haruku, alice, りんご"
               value={nameInput}

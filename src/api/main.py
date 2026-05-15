@@ -39,6 +39,13 @@ from src.storage.supabase_client import (
 )
 from src.llm.client import chat_with_tools, chat_after_tools
 from datetime import date as _date
+from src.storage.supabase_client import (
+    save_workout,
+    list_workouts,
+    save_context_note,
+    list_context_notes,
+    save_chat_log,
+)
 logger = logging.getLogger(__name__)
 
 
@@ -307,6 +314,7 @@ async def api_chat(request: Request) -> dict:
     """
     body = await request.json()
     user_id = body.get("user_id", "")
+    display_name = body.get("display_name", "")
     message = body.get("message", "")
 
     if not user_id or not message:
@@ -365,6 +373,14 @@ async def api_chat(request: Request) -> dict:
 
     add_message(user_id, "user", message)
     add_message(user_id, "assistant", reply)
+
+    save_chat_log({
+        "user_id": user_id,
+        "display_name": display_name,
+        "user_message": message,
+        "assistant_reply": reply,
+        "saved_records": saved_records,
+    })
 
     return {"reply": reply, "saved": saved_records}
 

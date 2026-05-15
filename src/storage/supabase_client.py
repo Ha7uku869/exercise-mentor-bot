@@ -45,6 +45,11 @@ def list_context_notes(user_id: str, limit: int = 20) -> list[dict]:
     )
     return response.data
 
+def save_chat_log(record: dict) -> dict:
+    """chat_logs テーブルに1件保存。友人テストの改善分析用。"""
+    response = client.table("chat_logs").insert(record).execute()
+    return response.data[0]
+
 if __name__ == "__main__":
     # 簡単な動作確認
     new_record = {
