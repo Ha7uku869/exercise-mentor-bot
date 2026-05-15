@@ -14,12 +14,24 @@ import "./App.css"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000"
 const USER_ID_STORAGE_KEY = "exercise-mentor:user_id"
+const DISPLAY_NAME_STORAGE_KEY = "exercise-mentor:display_name"
 
-function sanitizeUserId(raw) {
+function sanitizeDisplayName(raw) {
   // 空白除去 + 安全な文字だけ残す（英数字とひらがな・カタカナ・漢字・ハイフン）
   const trimmed = raw.trim()
   return trimmed.replace(/[^\p{L}\p{N}\-_]/gu, "").slice(0, 30)
 }
+
+async function deriveUserId(displayName, passphrase) {
+  const source = `${displayName}:${passphrase}`
+  const bytes = new TextEncoder().encode(source)
+  const digest = await crypto.subtle.digest("SHA-256", bytes)
+  const hex = [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+  return `u_${hex.slice(0, 32)}`
+}
+
 const CHART_MARGIN = { top: 52, right: 56, left: 12, bottom: 6 }
 
 function WorkoutVolumeLabel({ x, y, value, index, data }) {
@@ -121,12 +133,22 @@ export default function App() {
   const [exercise, setExercise] = useState("ベンチプレス")
   const [userId, setUserId] = useState(() => {
     try {
-      return localStorage.getItem(USER_ID_STORAGE_KEY) ?? ""
+      const savedUserId = localStorage.getItem(USER_ID_STORAGE_KEY) ?? ""
+      const savedDisplayName = localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) ?? ""
+      return savedUserId && savedDisplayName ? savedUserId : ""
+    } catch {
+      return ""
+    }
+  })
+  const [displayName, setDisplayName] = useState(() => {
+    try {
+      return localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) ?? ""
     } catch {
       return ""
     }
   })
   const [nameInput, setNameInput] = useState("")
+  const [passphraseInput, setPassphraseInput] = useState("")
   const messagesRef = useRef(null)
 
   async function loadWorkouts(uid) {
@@ -152,22 +174,29 @@ export default function App() {
     }
   }, [userId])
 
-  function saveName() {
-    const cleaned = sanitizeUserId(nameInput)
-    if (!cleaned) return
+  async function saveName() {
+    const cleaned = sanitizeDisplayName(nameInput)
+    const passphrase = passphraseInput.trim()
+    if (!cleaned || passphrase.length < 4) return
+    const derivedUserId = await deriveUserId(cleaned, passphrase)
     try {
-      localStorage.setItem(USER_ID_STORAGE_KEY, cleaned)
+      localStorage.setItem(USER_ID_STORAGE_KEY, derivedUserId)
+      localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, cleaned)
     } catch {}
-    setUserId(cleaned)
+    setUserId(derivedUserId)
+    setDisplayName(cleaned)
     setNameInput("")
+    setPassphraseInput("")
   }
 
   function changeName() {
-    if (!confirm("名前を変更すると、新しい名前のデータに切り替わります(過去データは別の名前に紐づいたままです)。続けますか?")) return
+    if (!confirm("ユーザーを切り替えると、別のニックネームと合言葉のデータに切り替わります。続けますか?")) return
     try {
       localStorage.removeItem(USER_ID_STORAGE_KEY)
+      localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY)
     } catch {}
     setUserId("")
+    setDisplayName("")
   }
 
   useEffect(() => {
@@ -241,10 +270,10 @@ export default function App() {
         <section className="name-gate">
           <h2>はじめまして</h2>
           <p>
-            あなたの記録を分けて保存するために、ニックネームを教えてください。
+            あなたの記録を分けて保存するために、ニックネームと合言葉を入力してください。
             <br />
             <small>
-              ブラウザに保存されます。サーバー側ではこの文字列を識別子として使います。
+              合言葉は保存せず、ブラウザ上で識別用IDに変換します。
             </small>
           </p>
           <div className="name-form">
@@ -261,7 +290,25 @@ export default function App() {
               }}
               autoFocus
             />
-            <button onClick={saveName} disabled={!sanitizeUserId(nameInput)}>
+            <input
+              type="password"
+              placeholder="合言葉（4文字以上）"
+              value={passphraseInput}
+              onChange={(e) => setPassphraseInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  saveName()
+                }
+              }}
+            />
+            <button
+              onClick={saveName}
+              disabled={
+                !sanitizeDisplayName(nameInput) ||
+                passphraseInput.trim().length < 4
+              }
+            >
               はじめる
             </button>
           </div>
@@ -275,13 +322,13 @@ export default function App() {
       <header className="app-header">
         <h1>運動メンター</h1>
         <div className="user-tag">
-          <span title="現在のニックネーム">{userId}</span>
+          <span title="現在のニックネーム">{displayName}</span>
           <button
             type="button"
             className="link-btn"
             onClick={changeName}
           >
-            名前変更
+            ユーザー変更
           </button>
         </div>
       </header>
