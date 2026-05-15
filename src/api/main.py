@@ -340,7 +340,7 @@ async def api_chat(request: Request) -> dict:
             try:
                 if name == "save_workout":
                     args.setdefault("date", _date.today().isoformat())
-                    saved = save_workout(args)
+                    saved = save_workout({"user_id": user_id, **args})
                 elif name == "save_context_note":
                     saved = save_context_note({"user_id": user_id, **args})
                 else:
@@ -370,6 +370,7 @@ async def api_chat(request: Request) -> dict:
 
 # リクエストモデル
 class WorkoutCreate(BaseModel):
+    user_id: str
     date: str  # ISO format YYYY-MM-DD
     exercise_name: str
     weight: float | None = None
@@ -388,5 +389,5 @@ async def api_create_workout(payload: WorkoutCreate) -> dict:
     return saved
 
 @app.get("/workouts")
-async def api_list_workouts(limit: int = 50) -> dict:
-    return {"workouts": list_workouts(limit=limit)}
+async def api_list_workouts(user_id: str, limit: int = 50) -> dict:
+    return {"workouts": list_workouts(user_id=user_id, limit=limit)}

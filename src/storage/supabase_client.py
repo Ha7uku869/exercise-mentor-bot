@@ -12,10 +12,13 @@ def save_workout(record: dict) -> dict:
     response = client.table("workouts").insert(record).execute()
     return response.data[0]  # 挿入後のレコードが配列で返るので、最初の要素を返す
 
-def list_workouts(limit: int=50) -> list[dict]:
-    """新しい順に最大 limit 件取得"""
-    response = client.table("workouts").select("*").order("date", desc=True).limit(limit).execute()
-    return response.data  # 取得したレコードのリストを返す
+def list_workouts(user_id: str | None = None, limit: int = 50) -> list[dict]:
+    """新しい順に最大 limit 件取得。user_id 指定でユーザーごとに絞り込む。"""
+    query = client.table("workouts").select("*")
+    if user_id:
+        query = query.eq("user_id", user_id)
+    response = query.order("date", desc=True).limit(limit).execute()
+    return response.data
 
 
 def save_context_note(record: dict) -> dict:

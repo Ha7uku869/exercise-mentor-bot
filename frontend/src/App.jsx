@@ -13,7 +13,13 @@ import {
 import "./App.css"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000"
-const USER_ID = "web-demo-user"
+const USER_ID_STORAGE_KEY = "exercise-mentor:user_id"
+
+function sanitizeUserId(raw) {
+  // 空白除去 + 安全な文字だけ残す（英数字とひらがな・カタカナ・漢字・ハイフン）
+  const trimmed = raw.trim()
+  return trimmed.replace(/[^\p{L}\p{N}\-_]/gu, "").slice(0, 30)
+}
 const CHART_MARGIN = { top: 52, right: 56, left: 12, bottom: 6 }
 
 function WorkoutVolumeLabel({ x, y, value, index, data }) {
@@ -113,11 +119,22 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [workouts, setWorkouts] = useState([])
   const [exercise, setExercise] = useState("ベンチプレス")
+  const [userId, setUserId] = useState(() => {
+    try {
+      return localStorage.getItem(USER_ID_STORAGE_KEY) ?? ""
+    } catch {
+      return ""
+    }
+  })
+  const [nameInput, setNameInput] = useState("")
   const messagesRef = useRef(null)
 
-  async function loadWorkouts() {
+  async function loadWorkouts(uid) {
+    if (!uid) return
     try {
-      const res = await fetch(`${API_BASE}/workouts?limit=200`)
+      const res = await fetch(
+        `${API_BASE}/workouts?user_id=${encodeURIComponent(uid)}&limit=200`,
+      )
       if (!res.ok) return
       const data = await res.json()
       setWorkouts(data.workouts ?? [])
@@ -127,8 +144,31 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadWorkouts()
-  }, [])
+    if (userId) {
+      loadWorkouts(userId)
+    } else {
+      setWorkouts([])
+      setMessages([])
+    }
+  }, [userId])
+
+  function saveName() {
+    const cleaned = sanitizeUserId(nameInput)
+    if (!cleaned) return
+    try {
+      localStorage.setItem(USER_ID_STORAGE_KEY, cleaned)
+    } catch {}
+    setUserId(cleaned)
+    setNameInput("")
+  }
+
+  function changeName() {
+    if (!confirm("名前を変更すると、新しい名前のデータに切り替わります(過去データは別の名前に紐づいたままです)。続けますか?")) return
+    try {
+      localStorage.removeItem(USER_ID_STORAGE_KEY)
+    } catch {}
+    setUserId("")
+  }
 
   useEffect(() => {
     const messageList = messagesRef.current
@@ -162,7 +202,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: USER_ID, message: text }),
+        body: JSON.stringify({ user_id: userId, message: text }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -173,7 +213,7 @@ export default function App() {
         (s) => s.tool === "save_workout",
       )
       if (savedWorkout) {
-        loadWorkouts()
+        loadWorkouts(userId)
       }
     } catch (err) {
       setMessages((m) => [
@@ -192,10 +232,58 @@ export default function App() {
     }
   }
 
+  if (!userId) {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <h1>運動メンター</h1>
+        </header>
+        <section className="name-gate">
+          <h2>はじめまして</h2>
+          <p>
+            あなたの記録を分けて保存するために、ニックネームを教えてください。
+            <br />
+            <small>
+              ブラウザに保存されます。サーバー側ではこの文字列を識別子として使います。
+            </small>
+          </p>
+          <div className="name-form">
+            <input
+              type="text"
+              placeholder="例: haruku, alice, りんご"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  saveName()
+                }
+              }}
+              autoFocus
+            />
+            <button onClick={saveName} disabled={!sanitizeUserId(nameInput)}>
+              はじめる
+            </button>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>運動メンター</h1>
+        <div className="user-tag">
+          <span title="現在のニックネーム">{userId}</span>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={changeName}
+          >
+            名前変更
+          </button>
+        </div>
       </header>
 
       <section className="dashboard">
