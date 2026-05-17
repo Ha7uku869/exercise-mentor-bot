@@ -279,7 +279,7 @@ export default function App() {
     return (
       <div className="app">
         <header className="app-header">
-          <h1>運動メンター</h1>
+          <h1>運動メンターv1.2</h1>
         </header>
         <section className="name-gate">
           <h2>はじめまして</h2>
