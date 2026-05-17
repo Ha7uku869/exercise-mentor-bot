@@ -130,7 +130,7 @@ export default function App() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [workouts, setWorkouts] = useState([])
-  const [exercise, setExercise] = useState("ベンチプレス")
+  const [exercise, setExercise] = useState("")
   const [userId, setUserId] = useState(() => {
     try {
       const savedUserId = localStorage.getItem(USER_ID_STORAGE_KEY) ?? ""
@@ -149,6 +149,7 @@ export default function App() {
   })
   const [nameInput, setNameInput] = useState("")
   const [passphraseInput, setPassphraseInput] = useState("")
+  const [showHelp, setShowHelp] = useState(false)
   const messagesRef = useRef(null)
 
   async function loadWorkouts(uid) {
@@ -189,8 +190,8 @@ export default function App() {
     setPassphraseInput("")
   }
 
-  function changeName() {
-    if (!confirm("ユーザーを切り替えると、別のニックネームと合言葉のデータに切り替わります。続けますか?")) return
+  function logout() {
+    if (!confirm("ログアウトしますか？")) return
     try {
       localStorage.removeItem(USER_ID_STORAGE_KEY)
       localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY)
@@ -212,6 +213,14 @@ export default function App() {
     const names = new Set(workouts.map((w) => w.exercise_name))
     return [...names].sort()
   }, [workouts])
+
+  useEffect(() => {
+    if (exerciseOptions.length === 0) return
+    if (!exercise || !exerciseOptions.includes(exercise)) {
+      setExercise(exerciseOptions[0])
+    }
+  }, [exerciseOptions, exercise])
+
 
   const { data: chartData, type: chartType } = useMemo(
     () => aggregateByDate(workouts, exercise),
@@ -249,9 +258,10 @@ export default function App() {
         loadWorkouts(userId)
       }
     } catch (err) {
+      console.error("chat failed", err) //ブラウザのDevToolsのConsoleタブにエラーを出すための標準API
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: `エラー: ${err.message}` },
+        { role: "assistant", content: `一時的に応答に失敗しました。少し時間を置いてもう一度試してください。`},
       ])
     } finally {
       setLoading(false)
@@ -332,16 +342,43 @@ export default function App() {
       <header className="app-header">
         <h1>運動メンター</h1>
         <div className="user-tag">
-          <span title="現在のニックネーム">{displayName}</span>
+          <button
+            type="button"
+            className="help-btn"
+            aria-label="ヘルプ"
+            onClick={() => setShowHelp((v) => !v)}
+          >
+            ?
+          </button>
           <button
             type="button"
             className="link-btn"
-            onClick={changeName}
+            title="クリックでログアウト"
+            onClick={logout}
           >
-            ユーザー変更
+            {displayName}
           </button>
         </div>
       </header>
+
+      {showHelp && (
+        <>
+          <div
+            className="help-overlay"
+            onClick={() => setShowHelp(false)}
+          />
+          <div className="help-tooltip" role="dialog">
+            <strong>「運動メンター」とは？</strong>
+            <p>
+              このアプリは、運動や筋トレを頑張りたいと思っているユーザーを対象とした、記録ツールです。
+            </p>
+            <p>
+              例えば、筋トレのベンチプレスをした後に、「今日は50kgのベンチを8回3セットできた！」のように、話しかけるようにメッセージを送ってみると、自動でグラフにして自分の頑張りを見やすく記録・表示してくれます。
+            </p>
+          </div>
+        </>
+      )}
+
 
       <section className="dashboard">
         <div className="dashboard-controls">
@@ -352,7 +389,7 @@ export default function App() {
               onChange={(e) => setExercise(e.target.value)}
             >
               {exerciseOptions.length === 0 && (
-                <option value="ベンチプレス">ベンチプレス</option>
+                <option value="" disabled>種目がありません</option>
               )}
               {exerciseOptions.map((name) => (
                 <option key={name} value={name}>
@@ -369,7 +406,9 @@ export default function App() {
         <div className="chart-wrap">
           {chartData.length === 0 ? (
             <p className="hint">
-              まだ {exercise} の記録がありません。チャットで「ベンチ60kg×8を3セット」「30分ランニング5km」「ヨガ60分」のように送ってみてください。
+              {exercise
+                ? `まだ ${exercise} の記録がありません。`
+                : "まだ記録がありません。チャットで「ベンチ60kg×8を3セット」「30分ランニング5km」「ヨガ60分」のように送ってみてください。"}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
