@@ -130,7 +130,7 @@ export default function App() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [workouts, setWorkouts] = useState([])
-  const [exercise, setExercise] = useState("ベンチプレス")
+  const [exercise, setExercise] = useState("")
   const [userId, setUserId] = useState(() => {
     try {
       const savedUserId = localStorage.getItem(USER_ID_STORAGE_KEY) ?? ""
@@ -213,6 +213,14 @@ export default function App() {
     const names = new Set(workouts.map((w) => w.exercise_name))
     return [...names].sort()
   }, [workouts])
+
+  useEffect(() => {
+    if (exerciseOptions.length === 0) return
+    if (!exercise || !exerciseOptions.includes(exercise)) {
+      setExercise(exerciseOptions[0])
+    }
+  }, [exerciseOptions, exercise])
+
 
   const { data: chartData, type: chartType } = useMemo(
     () => aggregateByDate(workouts, exercise),
@@ -381,7 +389,7 @@ export default function App() {
               onChange={(e) => setExercise(e.target.value)}
             >
               {exerciseOptions.length === 0 && (
-                <option value="ベンチプレス">ベンチプレス</option>
+                <option value="" disabled>種目がありません</option>
               )}
               {exerciseOptions.map((name) => (
                 <option key={name} value={name}>
@@ -398,7 +406,9 @@ export default function App() {
         <div className="chart-wrap">
           {chartData.length === 0 ? (
             <p className="hint">
-              まだ {exercise} の記録がありません。チャットで「ベンチ60kg×8を3セット」「30分ランニング5km」「ヨガ60分」のように送ってみてください。
+              {exercise
+                ? `まだ ${exercise} の記録がありません。`
+                : "まだ記録がありません。チャットで「ベンチ60kg×8を3セット」「30分ランニング5km」「ヨガ60分」のように送ってみてください。"}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
