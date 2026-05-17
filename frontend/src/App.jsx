@@ -149,6 +149,7 @@ export default function App() {
   })
   const [nameInput, setNameInput] = useState("")
   const [passphraseInput, setPassphraseInput] = useState("")
+  const [showHelp, setShowHelp] = useState(false)
   const messagesRef = useRef(null)
 
   async function loadWorkouts(uid) {
@@ -189,8 +190,8 @@ export default function App() {
     setPassphraseInput("")
   }
 
-  function changeName() {
-    if (!confirm("ユーザーを切り替えると、別のニックネームと合言葉のデータに切り替わります。続けますか?")) return
+  function logout() {
+    if (!confirm("ログアウトしますか？")) return
     try {
       localStorage.removeItem(USER_ID_STORAGE_KEY)
       localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY)
@@ -333,16 +334,43 @@ export default function App() {
       <header className="app-header">
         <h1>運動メンター</h1>
         <div className="user-tag">
-          <span title="現在のニックネーム">{displayName}</span>
+          <button
+            type="button"
+            className="help-btn"
+            aria-label="ヘルプ"
+            onClick={() => setShowHelp((v) => !v)}
+          >
+            ?
+          </button>
           <button
             type="button"
             className="link-btn"
-            onClick={changeName}
+            title="クリックでログアウト"
+            onClick={logout}
           >
-            ユーザー変更
+            {displayName}
           </button>
         </div>
       </header>
+
+      {showHelp && (
+        <>
+          <div
+            className="help-overlay"
+            onClick={() => setShowHelp(false)}
+          />
+          <div className="help-tooltip" role="dialog">
+            <strong>「運動メンター」とは？</strong>
+            <p>
+              このアプリは、運動や筋トレを頑張りたいと思っているユーザーを対象とした、記録ツールです。
+            </p>
+            <p>
+              例えば、筋トレのベンチプレスをした後に、「今日は50kgのベンチを8回3セットできた！」のように、話しかけるようにメッセージを送ってみると、自動でグラフにして自分の頑張りを見やすく記録・表示してくれます。
+            </p>
+          </div>
+        </>
+      )}
+
 
       <section className="dashboard">
         <div className="dashboard-controls">
