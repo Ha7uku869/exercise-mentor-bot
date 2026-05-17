@@ -249,9 +249,10 @@ export default function App() {
         loadWorkouts(userId)
       }
     } catch (err) {
+      console.error("chat failed", err) //ブラウザのDevToolsのConsoleタブにエラーを出すための標準API
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: `エラー: ${err.message}` },
+        { role: "assistant", content: `一時的に応答に失敗しました。少し時間を置いてもう一度試してください。`},
       ])
     } finally {
       setLoading(false)
