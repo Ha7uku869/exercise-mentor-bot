@@ -1,47 +1,58 @@
-# 筋トレメタ認知AI
+# 運動メンターBot
 
-筋トレに取り組む人が陥りがちな**認知バイアス（認知の歪み）**を対話を通じて検知し、より柔軟な考え方を提案する LINE Bot です。
+運動の記録を自然な会話でLINEに送るだけで、LLMが内容を構造化して保存し、エビデンスベースの知識と過去の記録を踏まえてトレーニング提案を返すパーソナルメンターAIです。
 
-## コンセプト
+## 機能概要
 
-「今日サボったから全部台無しだ」「自分はいつもダメだ」——筋トレを続ける中で、こうした思考パターンに陥ったことはありませんか？
+| 機能 | 説明 |
+|---|---|
+| **自然言語での運動記録** | 「今日ベンチ80kg×5×3やった」と送ると Function Calling で自動保存 |
+| **文脈記憶** | 怪我・目標・生活変化などをコンテキストノートとして保持し、提案に反映 |
+| **RAGによる知識検索** | スポーツ科学のメタ分析・レビュー論文を構造化した知識ベースから関連情報を取得 |
+| **部位バランス分析** | 直近の記録から種目→筋肉部位のマッピングを行い、不足部位を検出 |
+| **Webダッシュボード** | ワークアウト量の時系列グラフ、チャット履歴をブラウザで確認 |
+| **LINE Bot** | LINE Messaging API 経由でスマートフォンから利用可能 |
 
-このBotは認知行動療法（CBT）の「10の認知の歪み」（David Burns, 1980）をベースに、ユーザーの発言から認知バイアスを検知し、リフレーミング（より柔軟な考え方）を提案します。
+## アーキテクチャ
 
-### 検知できる認知の歪み
+```
+[LINE] ──────────────────────────────────────────────────────
+  ユーザー発話
+    └─► /callback (FastAPI)
+          ├─ 署名検証
+          ├─ respond() → RAG検索 + Groq API (Llama 3.3 70B)
+          └─ 返信
 
-| # | 歪みの種類 | 筋トレでの例 |
-|---|---|---|
-| 1 | 全か無か思考 | 「1日サボったら全部台無し」 |
-| 2 | 過度の一般化 | 「いつも三日坊主だ」 |
-| 3 | 心のフィルター | 成果を無視し、できなかったことだけに注目 |
-| 4 | マイナス化思考 | 「ベンチプレスが伸びたのはたまたま」 |
-| 5 | 結論の飛躍 | 「周りは自分のフォームが変だと思っている」 |
-| 6 | 拡大解釈と過小評価 | 「1回休んだ = 筋肉が全部落ちる」 |
-| 7 | 感情的決めつけ | 「やる気が出ない = 自分は怠け者」 |
-| 8 | すべき思考 | 「毎日ジムに行くべきだ」 |
-| 9 | レッテル貼り | 「サボった自分はダメ人間」 |
-| 10 | 個人化 | 「仲間が来なくなったのは自分のせい」 |
+[Web UI (React/Vite)] ──────────────────────────────────────
+  チャット入力
+    └─► /api/chat (FastAPI)
+          ├─ Function Calling → save_workout / save_context_note
+          │       └─► Supabase (workout_logs, context_notes, chat_logs)
+          ├─ _build_chat_system_prompt() → context_notesを注入
+          └─ Groq API → 返信テキスト
+
+[ダッシュボード] ────────────────────────────────────────────
+  /api/dashboard/{user_id}
+    ├─ トレーニング履歴 (Supabase)
+    ├─ 部位バランス分析 (training_analyzer)
+    └─ 会話履歴 (SQLite)
+```
 
 ## Tech Stack
 
-- **Chat UI**: LINE Bot（Messaging API）
-- **LLM**: Llama 3.3 70B（Groq API 経由）
-- **Backend**: Python, FastAPI
-- **Hosting**: Render
+| レイヤー | 技術 |
+|---|---|
+| バックエンド | Python 3.12, FastAPI |
+| LLM | Groq API (Llama 3.3 70B) |
+| RAG | BAAI/bge-small-en-v1.5（英語埋め込み + 日本語テキストの二重構造） |
+| ストレージ | SQLite（会話履歴）/ Supabase（ワークアウトログ・コンテキストノート） |
+| フロントエンド | React, Vite, Recharts |
+| LINE連携 | LINE Messaging API (linebot-sdk v3) |
+| ホスティング | Render |
 
-## Architecture
+## セットアップ
 
-```
-User (LINE) --> LINE Platform --> /callback (FastAPI)
-    --> 署名検証 --> テキスト抽出 --> respond() (bias/detector)
-    --> chat() (llm/client) --> Groq API (Llama 3.3 70B)
-    --> 応答テキスト --> LINE に返信
-```
-
-## Setup
-
-### 1. 環境変数の設定
+### 1. 環境変数
 
 ```bash
 cp .env.example .env
@@ -54,64 +65,69 @@ cp .env.example .env
 | `LINE_CHANNEL_SECRET` | [LINE Developers Console](https://developers.line.biz/console/) |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console |
 | `GROQ_API_KEY` | [Groq Console](https://console.groq.com/) |
+| `SUPABASE_URL` | Supabase プロジェクト設定 |
+| `SUPABASE_KEY` | Supabase プロジェクト設定 |
 
-### 2. インストール
+### 2. インストール・起動
 
 ```bash
 pip install -e ".[dev]"
-cd frontend
-npm install
+cd frontend && npm install && cd ..
+.\dev.ps1        # PowerShell: バックエンドとフロントを同時起動
 ```
 
-### 3. 開発サーバーの起動
-
-PowerShell でリポジトリルートから以下を実行:
-
-```powershell
-.\dev.ps1
+バックエンドのみ:
+```bash
+uvicorn src.api.main:app --reload
 ```
 
-バックエンドとフロントエンドが別々の PowerShell ウィンドウで起動します。
-
-手動で起動する場合:
-
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn src.api.main:app --reload
-
-cd frontend
-npm run dev
-```
-
-### 4. LINE Bot と接続（開発時）
+### 3. LINE Bot との接続（開発時）
 
 ```bash
 ngrok http 8000
 ```
 
-表示された URL を LINE Developers Console の Webhook URL に設定:
+発行されたURLを LINE Developers Console の Webhook URL に設定:
 `https://xxxx.ngrok-free.dev/callback`
 
-## Project Structure
+## プロジェクト構成
 
 ```
 src/
-├── api/main.py        # FastAPI + LINE Webhook
-├── llm/client.py      # Groq API client (OpenAI互換)
+├── api/main.py              # FastAPI + LINE Webhook + /api/chat
+├── llm/client.py            # Groq API クライアント（Function Calling対応）
 ├── bias/
-│   ├── prompts.py     # CBTベースのシステムプロンプト
-│   └── detector.py    # バイアス検知の応答生成
-├── config.py          # 環境変数管理 (pydantic-settings)
-├── rag/               # Phase 2: RAGパイプライン
-└── storage/           # Phase 2: 会話履歴保存
+│   ├── prompts.py           # システムプロンプト定義
+│   └── detector.py          # LINE Bot 応答生成
+├── rag/
+│   ├── knowledge_data.py    # エビデンスベースの筋トレ知識データ
+│   ├── embedder.py          # テキスト埋め込み
+│   ├── retriever.py         # ベクトル検索
+│   └── store.py             # 知識ストア管理
+├── storage/
+│   ├── memory.py            # SQLite 会話履歴
+│   ├── supabase_client.py   # Supabase CRUD
+│   ├── profile_extractor.py # ユーザープロフィール抽出
+│   └── training_analyzer.py # 部位バランス分析
+├── training/                # トレーニング関連ロジック
+└── config.py                # 環境変数管理 (pydantic-settings)
+frontend/
+├── src/App.jsx              # チャットUI + ワークアウトグラフ (Recharts)
+└── ...
 ```
+
+## 設計上の工夫
+
+- **Function Callingによる構造化**: 「今日スクワット60kg×10×4やった」のような自然文から、date/exercise_name/weight/reps/sets を自動抽出してSupabaseに保存。
+- **RAGの英日二重構造**: 埋め込みモデル(BAAI/bge-small-en-v1.5)が英語特化のため、検索用に英語サマリー・LLMへの入力に日本語テキストを使い分けることで検索精度と応答品質を両立。
+- **コンテキストノートのシステムプロンプト注入**: 怪我・目標などの長期情報をSupabaseに保存し、毎回のシステムプロンプトに挿入することで、LLMが個人文脈を保持した提案を継続的に行える。
+- **ユーザー識別**: 表示名とパスフレーズのSHA-256ハッシュでuser_idを生成し、認証基盤なしでユーザー分離を実現。
 
 ## Roadmap
 
-- [x] Phase 1: LINE Bot + LLM対話 + 認知バイアス検知
-- [ ] Phase 2: RAG による会話履歴の活用・バイアス分類の構造化
-- [ ] Phase 3: 改善度可視化ダッシュボード
-
-## References
-
-- Burns, D. D. (1980). *Feeling Good: The New Mood Therapy*
-- Wei, J. et al. (2022). "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models"
+- [x] Phase 1: LINE Bot + LLM対話 + RAG知識検索
+- [x] Phase 2: Function Calling によるワークアウト記録 / Supabase 永続化
+- [x] Phase 2.5: Webダッシュボード + 会話ログ復元 + 部位バランス分析
+- [ ] Phase 3: 記憶カードUI（AIが何を覚えているか可視化）
+- [ ] Phase 4: ユーザー文脈グラフ（提案根拠の可視化）
+- [ ] Phase 5: Multi-Agent化（Extractor / Retriever / Coach / Safety の責務分離）
