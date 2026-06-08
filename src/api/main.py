@@ -45,6 +45,7 @@ from src.storage.supabase_client import (
     save_context_note,
     list_context_notes,
     save_chat_log,
+    get_chat_logs,
 )
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,11 @@ async def api_get_bias(user_id: str) -> dict:
 async def api_get_balance(user_id: str) -> dict:
     """部位別トレーニングバランスを返す。"""
     return analyze_training_balance(user_id)
+
+@app.get("/api/logs/{user_id}")
+async def get_logs(user_id: str):
+   return get_chat_logs(user_id)
+
 
 # ① ユーザーがReactの入力欄に「肩トレどうすれば？」と入力、送信ボタン
 # ② ReactのJSが fetch("http://localhost:8000/api/chat", {
@@ -407,3 +413,4 @@ async def api_create_workout(payload: WorkoutCreate) -> dict:
 @app.get("/workouts")
 async def api_list_workouts(user_id: str, limit: int = 50) -> dict:
     return {"workouts": list_workouts(user_id=user_id, limit=limit)}
+

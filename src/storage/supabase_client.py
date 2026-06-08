@@ -38,7 +38,7 @@ def list_context_notes(user_id: str, limit: int = 20) -> list[dict]:
     response = (
         client.table("context_notes")
         .select("*")
-        .eq("user_id", user_id)
+        .eq("user_id", user_id) 
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
@@ -49,6 +49,19 @@ def save_chat_log(record: dict) -> dict:
     """chat_logs テーブルに1件保存。友人テストの改善分析用。"""
     response = client.table("chat_logs").insert(record).execute()
     return response.data[0]
+
+def get_chat_logs(user_id, limit=20):
+
+    response = (
+        client.table("chat_logs")
+        .select("*")
+        .eq("user_id", user_id) #eq = equalの略で、WHERE user_id = 'ha7uku'と同じ意味。
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    return response.data
 
 if __name__ == "__main__":
     # 簡単な動作確認
@@ -67,3 +80,4 @@ if __name__ == "__main__":
 
     workouts = list_workouts()
     print("Recent workouts:", workouts)
+

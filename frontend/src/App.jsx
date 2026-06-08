@@ -159,16 +159,36 @@ export default function App() {
         `${API_BASE}/workouts?user_id=${encodeURIComponent(uid)}&limit=200`,
       )
       if (!res.ok) return
-      const data = await res.json()
+      const data = await res.json() //Jsonに変換
       setWorkouts(data.workouts ?? [])
     } catch (err) {
       console.error("loadWorkouts failed", err)
     }
   }
 
+  async function loadChatLogs(uid) {
+    console.log("loadChatLogs called", uid)
+    if (!uid) return
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/logs/${uid}`,
+      )
+      if (!res.ok) return
+      const data = await res.json() //Jsonに変換
+        const messages = data.flatMap(log => [
+        { role: "user",      content: log.user_message },
+        { role: "assistant", content: log.assistant_reply }
+      ])
+      setMessages(messages)
+    } catch (err) {
+      console.error("loadChatLogs failed", err)
+    }
+  }
+
   useEffect(() => {
     if (userId) {
       loadWorkouts(userId)
+      loadChatLogs(userId)
     } else {
       setWorkouts([])
       setMessages([])
@@ -227,6 +247,8 @@ export default function App() {
     [workouts, exercise],
   )
   const labels = CHART_LABELS[chartType] ?? CHART_LABELS.other
+
+
 
   async function send() {
     const text = input.trim()
@@ -506,3 +528,5 @@ export default function App() {
     </div>
   )
 }
+
+
