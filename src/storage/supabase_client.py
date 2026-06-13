@@ -1,5 +1,6 @@
 from supabase import create_client, Client
 from src.config import get_settings
+from datetime import date
 
 
 settings = get_settings()
@@ -41,6 +42,28 @@ def list_context_notes(user_id: str, limit: int = 20) -> list[dict]:
         .eq("user_id", user_id) 
         .order("created_at", desc=True)
         .limit(limit)
+        .execute()
+    )
+    return response.data
+
+def save_muscle_soreness(record: dict) -> dict:
+    """muscle_conditions テーブルに1件保存。保存後のレコードを返す。"""
+    response = client.table("muscle_conditions").insert(record).execute()
+    return response.data[0]
+
+
+def list_active_soreness(user_id: str) -> list[dict]:
+    """まだ回復していない（valid_until >= 今日）筋肉痛の部位を返す。
+
+    人体図を赤く塗るためのデータ。期限切れは自動的に除外される。
+    """
+    today = date.today().isoformat()
+    response = (
+        client.table("muscle_conditions")
+        .select("body_part, valid_until")
+        .eq("user_id", user_id)
+        .gte("valid_until", today)  #greater than or equal
+        .order("created_at", desc=True)
         .execute()
     )
     return response.data

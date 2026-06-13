@@ -99,6 +99,7 @@ async def chat_with_tools(
         messages=messages,
         tools=tools,
         tool_choice="auto",
+        temperature=0,
     )
     msg = response.choices[0].message
 

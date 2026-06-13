@@ -46,6 +46,10 @@ from src.storage.supabase_client import (
     list_context_notes,
     save_chat_log,
     get_chat_logs,
+    save_chat_log,
+    get_chat_logs,
+    save_muscle_soreness,
+    list_active_soreness,
 )
 logger = logging.getLogger(__name__)
 
@@ -209,6 +213,13 @@ async def get_logs(user_id: str):
 # Function Calling 用ツール定義
 # ──────────────────────────────────────
 
+
+BODY_PARTS = [
+    "chest", "shoulders", "back", "biceps", "triceps", "forearms",
+    "abs", "glutes", "quads", "hamstrings", "calves",
+]
+
+
 TOOLS = [
     {
         "type": "function",
@@ -238,6 +249,17 @@ TOOLS = [
                         "description": "主観的強度 1〜10。重量や距離で表せない種目用",
                     },
                     "memo": {"type": "string"},
+                    "target_body_parts": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": BODY_PARTS},
+                        "description": (
+                            "この種目が主に鍛える部位をリストから選ぶ（1〜3個）。"
+                            "明確に特定の筋肉を狙う種目のときだけ埋める。"
+                            "ランニング・ヨガ・散歩など部位が曖昧な運動では省略してよい。"
+                            "例: ベンチプレス→['chest','triceps']、サイドレイズ→['shoulders']、"
+                            "スクワット→['quads','glutes']"
+                        ),
+                    },
                 },
                 "required": ["date", "exercise_name"],
             },
@@ -265,16 +287,44 @@ TOOLS = [
             },
         },
     },
+    
+    {
+        "type": "function",
+        "function": {
+            "name": "save_muscle_soreness",
+            "description": (
+                "ユーザーが特定の部位の筋肉痛・張り・痛みを訴えたときに呼ぶ。"
+                "例: 「胸が筋肉痛」「脚がパンパン」「肩が張ってる」。"
+                "部位が特定できない一時的な全身疲労（疲れた・だるい）には使わない。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "body_parts": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": BODY_PARTS},
+                        "description": "筋肉痛の部位をリストから選ぶ（1個以上）。例: 胸→['chest']、脚→['quads','hamstrings']",
+                    },
+                    "valid_until": {
+                        "type": "string",
+                        "description": "YYYY-MM-DD。回復予定日。ユーザーが期間を言ったときだけ（例: あと2日で治りそう→2日後）。不明なら省略（自動で3日後）",
+                    },
+                },
+                "required": ["body_parts"],
+            },
+        },
+    },
 ]
 
 
-def _build_chat_system_prompt(user_id: str) -> str:
+def _build_chat_system_prompt(user_id: str, notes: list[dict] | None = None) -> str:
     """チャット用のシステムプロンプトを組み立てる。
 
     過去の context_notes を文脈として含め、LLM がそれを踏まえて応答できるようにする。
     """
     today = _date.today().isoformat()
-    notes = list_context_notes(user_id, limit=10)
+    if notes is None:                                  # 渡されなければ従来通りDBから取る
+        notes = list_context_notes(user_id, limit=100)
     notes_block = "（なし）"
     if notes:
         lines = []
@@ -284,32 +334,36 @@ def _build_chat_system_prompt(user_id: str) -> str:
         notes_block = "\n".join(lines)
 
     return f"""あなたは運動・トレーニングのメンターAIです。今日は {today}。
-対応する活動: 筋トレ、ランニング、ウォーキング、ヨガ、ストレッチ、リングフィット等のフィットネスゲーム、ゴルフ練習、球技、登山など。
+            対応する活動: 筋トレ、ランニング、ウォーキング、ヨガ、ストレッチ、リングフィット等のフィットネスゲーム、ゴルフ練習、球技、登山など。
 
-【役割】
-- ユーザーの運動実績を記録し、メタ認知を促す
-- 怪我・目標・生活変化など重要情報を覚えておく
-- 必ず日本語で応答する
+            【役割】
+            - ユーザーの運動実績を記録し、メタ認知を促す
+            - 怪我・目標・生活変化など重要情報を覚えておく
+            - 必ず日本語で応答する
 
-【ツール使用ルール（厳格に守ること）】
-- save_workout: 運動・トレーニングを「実施した」報告のときだけ呼ぶ。
-  対応種目: 筋トレ（重量×回数×セット）/ ランニング・ウォーキング（時間・距離）/
-  ヨガ・ストレッチ・ピラティス（時間）/ リングフィット等ゲーム（時間+主観強度）/
-  ゴルフ練習・球技・登山など（時間+主観強度）。
-  種目に応じ、関連する数値フィールドだけ埋める（埋められないものは省略）。
-- save_context_note: **将来の提案を変える** 情報のときだけ呼ぶ。
-  該当例: 怪我、慢性疾患、明確な目標宣言（「3ヶ月で-5kg」等）、生活変化（妊娠、転勤、機材入手）。
-  非該当: 「調子がいい」「眠い」「お腹空いた」など雑談。判断に迷ったら呼ばない。
-- 上記いずれにも該当しない場合は、ツールを呼ばず応答テキストだけを返す。
-- valid_until や数値フィールドが不明なときはそのフィールド自体を含めない（空文字 "" を入れない）。
+            【ツール使用ルール（厳格に守ること）】
+            - save_workout: 運動・トレーニングを「実施した」報告のときだけ呼ぶ。
+            対応種目: 筋トレ（重量×回数×セット）/ ランニング・ウォーキング（時間・距離）/
+            ヨガ・ストレッチ・ピラティス（時間）/ リングフィット等ゲーム（時間+主観強度）/
+            ゴルフ練習・球技・登山など（時間+主観強度）。
+            種目に応じ、関連する数値フィールドだけ埋める（埋められないものは省略）。
+            - save_context_note: **将来の提案を変える** 情報のときだけ呼ぶ。
+            該当例: 怪我、慢性疾患、明確な目標宣言（「3ヶ月で-5kg」等）、生活変化（妊娠、転勤、機材入手）。
+            非該当: 「調子がいい」「眠い」「お腹空いた」など雑談。判断に迷ったら呼ばない。
+            - 上記いずれにも該当しない場合は、ツールを呼ばず応答テキストだけを返す。
+            - valid_until や数値フィールドが不明なときはそのフィールド自体を含め
+            - save_muscle_soreness: 特定部位の筋肉痛・張りを訴えたときだけ呼ぶ。
+            該当例: 「胸が筋肉痛」「脚がパンパン」「肩が張ってる」→ body_parts に部位を入れる。
+            非該当: 「疲れた」「だるい」など部位が特定できない全身疲労（呼ばない）。
+            怪我・故障（「痛めた」「肉離れ」）は save_muscle_soreness でなく save_context_note(injury) を使う。
 
-【ユーザーの背景情報（過去の context_notes）】
-{notes_block}
+            【ユーザーの背景情報（過去の context_notes）】
+            {notes_block}
 
-【応答スタイル】
-- ツールで保存した場合は「○○として記録しました」と何を保存したか伝える
-- メタ認知を促す問いかけを1つ含めると良い（毎回でなくてよい）
-"""
+            【応答スタイル】
+            - ツールで保存した場合は「○○として記録しました」と何を保存したか伝える
+            - メタ認知を促す問いかけを1つ含めると良い（毎回でなくてよい）
+            """
 
 
 @app.post("/api/chat")
@@ -354,9 +408,30 @@ async def api_chat(request: Request) -> dict:
             try:
                 if name == "save_workout":
                     args.setdefault("date", _date.today().isoformat())
+                    # LLMが範囲外のslug（"legs"や"大胸筋"等）を返すことがあるので、
+                    # 正式リストに無いものは捨てる。残らなければキーごと削除（=null保存）。
+                    parts = args.get("target_body_parts")
+                    if isinstance(parts, list):
+                        valid = [p for p in parts if p in BODY_PARTS]
+                        if valid:
+                            args["target_body_parts"] = valid
+                        else:
+                            args.pop("target_body_parts")
                     saved = save_workout({"user_id": user_id, **args})
                 elif name == "save_context_note":
                     saved = save_context_note({"user_id": user_id, **args})
+                elif name == "save_muscle_soreness":
+                    raw = args.get("body_parts")
+                    valid = (
+                        [p for p in raw if p in BODY_PARTS]
+                        if isinstance(raw, list) else []
+                    )
+                    saved = []
+                    for part in valid:
+                        row = {"user_id": user_id, "body_part": part}
+                        if args.get("valid_until"):
+                            row["valid_until"] = args["valid_until"]
+                        saved.append(save_muscle_soreness(row))
                 else:
                     saved = {"error": f"unknown tool: {name}"}
             except Exception as e:
@@ -414,3 +489,8 @@ async def api_create_workout(payload: WorkoutCreate) -> dict:
 async def api_list_workouts(user_id: str, limit: int = 50) -> dict:
     return {"workouts": list_workouts(user_id=user_id, limit=limit)}
 
+@app.get("/api/soreness/{user_id}")
+def api_list_soreness(user_id: str) -> dict:
+    rows = list_active_soreness(user_id)
+    sore_parts = sorted({r["body_part"] for r in rows})
+    return {"sore_parts": sore_parts}

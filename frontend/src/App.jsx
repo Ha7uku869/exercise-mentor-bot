@@ -11,6 +11,7 @@ import {
   LabelList,
 } from "recharts"
 import "./App.css"
+import BodyMap, { PART_LABELS } from "./BodyMap"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000"
 const USER_ID_STORAGE_KEY = "exercise-mentor:user_id"
@@ -130,6 +131,8 @@ export default function App() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [workouts, setWorkouts] = useState([])
+  const [soreParts, setSoreParts] = useState([])
+  const [selectedPart, setSelectedPart] = useState(null)
   const [exercise, setExercise] = useState("")
   const [userId, setUserId] = useState(() => {
     try {
@@ -166,6 +169,20 @@ export default function App() {
     }
   }
 
+  async function loadSoreParts(uid) {
+  if (!uid) return
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/soreness/${encodeURIComponent(uid)}`,
+    )
+    if (!res.ok) return
+    const data = await res.json()
+    setSoreParts(data.sore_parts ?? [])
+  } catch (err) {
+    console.error("loadSoreParts failed", err)
+  }
+}
+
   async function loadChatLogs(uid) {
     console.log("loadChatLogs called", uid)
     if (!uid) return
@@ -185,13 +202,15 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
+   useEffect(() => {
     if (userId) {
       loadWorkouts(userId)
       loadChatLogs(userId)
+      loadSoreParts(userId)        // ← 追加
     } else {
       setWorkouts([])
       setMessages([])
+      setSoreParts([])             // ← 追加
     }
   }, [userId])
 
@@ -229,10 +248,25 @@ export default function App() {
     })
   }, [messages, loading])
 
-  const exerciseOptions = useMemo(() => {
-    const names = new Set(workouts.map((w) => w.exercise_name))
-    return [...names].sort()
+  // 部位から種目名の対応表
+  const partToExercises = useMemo(() => { 
+    const map = {}
+    for (const w of workouts) {
+      for (const part of w.target_body_parts ?? []) {
+        if (!map[part]) map[part] = new Set()
+        map[part].add(w.exercise_name)
+      }
+    }
+    return map
   }, [workouts])
+
+
+  const exerciseOptions = useMemo(() => {
+    const source = selectedPart
+      ? partToExercises[selectedPart] ?? new Set()
+      : new Set(workouts.map((w) => w.exercise_name))
+    return [...source].sort()
+  }, [workouts, selectedPart, partToExercises])
 
   useEffect(() => {
     if (exerciseOptions.length === 0) return
@@ -276,6 +310,12 @@ export default function App() {
       const savedWorkout = (data.saved ?? []).some(
         (s) => s.tool === "save_workout",
       )
+            const savedSoreness = (data.saved ?? []).some(
+        (s) => s.tool === "save_muscle_soreness",
+      )
+      if (savedSoreness) {
+        loadSoreParts(userId)
+      }
       if (savedWorkout) {
         loadWorkouts(userId)
       }
@@ -400,7 +440,12 @@ export default function App() {
           </div>
         </>
       )}
-
+  <BodyMap
+    soreParts={soreParts} 
+    onSelectPart={(part) =>
+      setSelectedPart((cur) => (cur === part ? null : part))
+    }
+  />
 
       <section className="dashboard">
         <div className="dashboard-controls">
@@ -423,6 +468,16 @@ export default function App() {
           <span className="count-pill">
             記録: {chartData.length} 日分
           </span>
+          {selectedPart && (
+            <button
+              type="button"
+              className="count-pill"
+              title="クリックで全種目に戻す"
+              onClick={() => setSelectedPart(null)}
+            >
+              部位: {PART_LABELS[selectedPart] ?? selectedPart} ✕
+            </button>
+          )}
         </div>
 
         <div className="chart-wrap">
