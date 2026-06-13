@@ -34,11 +34,11 @@ export default function BodyMap({ soreParts = [], onSelectPart }) {
   }
 
   return (
-    <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+    <div className="body-map">
       <Model data={data} onClick={handleClick} type="anterior"
-             highlightedColors={["#e53935"]} style={{ width: "12rem" }} />
+             highlightedColors={["#e53935"]} />
       <Model data={data} onClick={handleClick} type="posterior"
-             highlightedColors={["#e53935"]} style={{ width: "12rem" }} />
+             highlightedColors={["#e53935"]} />
     </div>
   )
 }

@@ -132,6 +132,17 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [workouts, setWorkouts] = useState([])
   const [soreParts, setSoreParts] = useState([])
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches,
+  )
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)")
+    const update = () => setIsNarrow(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
   const [selectedPart, setSelectedPart] = useState(null)
   const [exercise, setExercise] = useState("")
   const [userId, setUserId] = useState(() => {
@@ -488,7 +499,7 @@ export default function App() {
                 : "まだ記録がありません。チャットで「ベンチ60kg×8を3セット」「30分ランニング5km」「ヨガ60分」のように送ってみてください。"}
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={isNarrow ? 160 : 240}>
               <LineChart
                 data={chartData}
                 margin={CHART_MARGIN}

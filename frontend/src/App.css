@@ -299,3 +299,32 @@ body {
   margin: 6px 0;
   font-size: 0.9em;
 }
+
+/* 人体図: サイズはCSSで制御（スマホで縮小して縦スペースを空ける） */
+.body-map {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+
+.body-map svg {
+  width: 10rem;
+  height: auto;
+}
+
+/* スマホ: 人体図とグラフ周りを小さくして messages の高さを確保 */
+@media (max-width: 640px) {
+  .dashboard {
+    padding: 8px 12px;
+  }
+  .body-map {
+    gap: 8px;
+    padding: 2px 0;
+  }
+  .body-map svg {
+    width: 4.75rem;
+  }
+}
