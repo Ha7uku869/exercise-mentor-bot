@@ -26,6 +26,13 @@ Thumbs.db
 # Logs
 *.log
 
+# Claude Code のローカル設定（APIキーを含むため絶対にコミットしない）
+.claude/
+
+# 誤って作られた重複コピー（中身が秘密だったりゴミ）
+docs/feedback-v1 (1).md
+docs/session-progress-2026-06-08 (1).md
+
 # Project-specific files (API keys, assets not for repo)
 API キーの詳細.txt
 character_noukin.png
